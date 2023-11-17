@@ -152,7 +152,8 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
         os.makedirs(model_path)
 
     # this defines the anchor points, and when sampling noise close to these, we impose image-level adversarial loss (Eq. 4 in the paper)
-    init_z = torch.randn(args.n_train, args.latent, device=device)
+    #init_z = torch.randn(args.n_train, args.latent, device=device)
+    
     pbar = range(args.iter)
     sfm = nn.Softmax(dim=1)
     kl_loss = nn.KLDivLoss()
@@ -187,7 +188,9 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
 
     # the following defines the constant noise used for generating images at different stages of training
     sample_z = torch.randn(args.n_sample, args.latent, device=device)
-
+    
+    #experiment on convergence pooling for SVD
+    init_z = torch.nn.functional.max_pool1d(torch.nn.functional.pad(sample_z.T,(5,3)),3).T[1:,:]
     requires_grad(g_source, False)
     requires_grad(d_source, False)
     sub_region_z = get_subspace(args, init_z.clone(), vis_flag=True)
