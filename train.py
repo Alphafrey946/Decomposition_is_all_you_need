@@ -152,7 +152,7 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
         os.makedirs(model_path)
 
     # this defines the anchor points, and when sampling noise close to these, we impose image-level adversarial loss (Eq. 4 in the paper)
-    #init_z = torch.randn(args.n_train, args.latent, device=device)
+    init_z = torch.randn(args.n_train, args.latent, device=device)
     
     pbar = range(args.iter)
     sfm = nn.Softmax(dim=1)
@@ -190,7 +190,7 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
     sample_z = torch.randn(args.n_sample, args.latent, device=device)
     
     #experiment on convergence pooling for SVD
-    init_z = torch.nn.functional.max_pool1d(torch.nn.functional.pad(sample_z.T,(5,3)),3).T[1:,:]
+    #init_z = torch.nn.functional.max_pool1d(torch.nn.functional.pad(sample_z.T,(5,3)),3).T[1:,:]
     requires_grad(g_source, False)
     requires_grad(d_source, False)
     sub_region_z = get_subspace(args, init_z.clone(), vis_flag=True)
@@ -214,8 +214,17 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
             noise = mixing_noise(args.batch, args.latent, args.mixing, device)
         else:
             # sample from anchors, apply image-level adversarial loss
-            noise = [get_subspace(args, init_z.clone())]
-
+            #noise = [get_subspace(args, init_z.clone())]
+            #print(noise,noise[0].shape)
+            #print(generator.style[-1].weight.clone())
+            z_s = g_ema.module.style[-1].weight.clone()
+            print(z_s.shape)
+            z_s_norm = z_s * torch.rsqrt(torch.mean(z_s ** 2, dim=1, keepdim=True) + 1e-8)
+            #print(z_s_norm.max(),z_s_norm.min(),sub_region_z.data)
+            z_s_norm = torch.nn.functional.max_pool1d(z_s_norm,124).T
+            #sample_subz, _ = g_ema([sub_region_z.data])
+            print(z_s_norm.shape, sub_region_z.data.shape)
+            noise = [z_s_norm]
         fake_img, _ = generator(noise)
 
         if args.augment:
@@ -422,7 +431,17 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
                 with torch.set_grad_enabled(False):
                     g_ema.eval()
                     sample, _ = g_ema([sample_z.data])
-                    sample_subz, _ = g_ema([sub_region_z.data])
+                    
+                    #print(g_ema.module.style[-1].weight.clone())
+                    z_s = g_ema.module.style[-1].weight.clone()
+                    z_s_norm = z_s * torch.rsqrt(torch.mean(z_s ** 2, dim=1, keepdim=True) + 1e-8)
+                    #print(z_s_norm.max(),z_s_norm.min(),sub_region_z.data)
+                    z_s_norm = torch.nn.functional.max_pool1d(z_s_norm,20).T
+                    #sample_subz, _ = g_ema([sub_region_z.data])
+                    print(z_s_norm.shape, sub_region_z.data.shape)
+                    sample_subz, _ = g_ema([z_s_norm])
+                    #pixelnorm 
+                    
                     utils.save_image(
                         sample,
                         f"%s/{str(i).zfill(6)}.png" % (imsave_path),
