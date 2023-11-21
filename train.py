@@ -14,7 +14,7 @@ from tqdm import tqdm
 import viz
 from copy import deepcopy
 import numpy
-
+import MPNCOV
 
 
 try:
@@ -212,19 +212,44 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
         if which > 0:
             # sample normally, apply patch-level adversarial loss
             noise = mixing_noise(args.batch, args.latent, args.mixing, device)
-        else:
+        elif i % 12 >0:
             # sample from anchors, apply image-level adversarial loss
             #noise = [get_subspace(args, init_z.clone())]
             #print(noise,noise[0].shape)
             #print(generator.style[-1].weight.clone())
             z_s = g_ema.module.style[-1].weight.clone()
-            print(z_s.shape)
+            #rand_indx = torch.randperm(len(z_s))
+            #z_s = z_s[rand_indx]
             z_s_norm = z_s * torch.rsqrt(torch.mean(z_s ** 2, dim=1, keepdim=True) + 1e-8)
+            x_sub = z_s_norm.unsqueeze(0).unsqueeze(2)
+            batch_size,C,_,_ =x_sub.shape 
+            print(x_sub.shape)
+            cov_mat = MPNCOV.CovpoolLayer(x_sub) 
+            cov_mat_sqrt = MPNCOV.SqrtmLayer(cov_mat,5) 
+            cov_mat_sum = torch.mean(cov_mat_sqrt,1)
+            cov_mat_sum = cov_mat_sum.view(batch_size,C,1,1)
             #print(z_s_norm.max(),z_s_norm.min(),sub_region_z.data)
-            z_s_norm = torch.nn.functional.max_pool1d(z_s_norm,124).T
+            #z_s_norm = torch.nn.functional.max_pool1d(z_s_norm,124).T
             #sample_subz, _ = g_ema([sub_region_z.data])
+            channel = 512
+            reduction = 8
+            conv_du = nn.Sequential(
+            nn.Conv2d(channel, channel // reduction, 1, padding=0, bias=True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channel // reduction, channel, 1, padding=0, bias=True),
+            nn.Sigmoid()
+            # nn.BatchNorm2d(channel)
+            ).cuda()
+            y_cov = conv_du(cov_mat_sum)
+            y_cov_ind = torch.topk(y_cov.flatten(), 4).indices
+            #y_cov_ind = torch.topk(cov_mat_sum.flatten(), 4).indices
+            z_s_norm = z_s_norm[y_cov_ind]
             print(z_s_norm.shape, sub_region_z.data.shape)
             noise = [z_s_norm]
+            
+        else:
+            noise = [get_subspace(args, init_z.clone())]
+            
         fake_img, _ = generator(noise)
 
         if args.augment:
