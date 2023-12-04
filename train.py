@@ -317,6 +317,10 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
                         dist_source[pair1, tmpc] = sim(
                             anchor_feat, compare_feat)
                         tmpc += 1
+
+            ## PW: try to add some noise to equation (2)
+            # noise_y_sl = torch.randn(args.feat_const_batch, args.feat_const_batch - 1, device = device)
+            # dist_source = dist_source + noise_y_sl
             dist_source = sfm(dist_source)
 
         # computing distances among target generations
@@ -335,9 +339,21 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
                         feat_target[feat_ind[pair1]][pair2].reshape(-1), 0)
                     dist_target[pair1, tmpc] = sim(anchor_feat, compare_feat)
                     tmpc += 1
+
+        ## PW: try to add some noise to equation (2)
+        # noise_y_stl = torch.randn(args.feat_const_batch, args.feat_const_batch - 1, device = device)
+        # dist_target = dist_target + noise_y_stl
+        
         dist_target = sfm(dist_target)
         rel_loss = args.kl_wt * \
             kl_loss(torch.log(dist_target), dist_source) # distance consistency loss 
+        
+        ## PW: try different loss
+        # rel_loss = args.kl_wt * torch.cdist(dist_target, dist_source)
+        # rel_loss = args.kl_wt * torch.cdist(dist_target, dist_source, p = 1)
+        # rel_loss = args.kl_wt * kl_loss(torch.log(dist_target), dist_source) + \
+        #   torch.randn(args.feat_const_batch, args.feat_const_batch - 1, device = device)
+        
         g_loss = g_loss + rel_loss
 
         loss_dict["g"] = g_loss
