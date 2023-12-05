@@ -319,8 +319,8 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
                         tmpc += 1
 
             ## PW: try to add some noise to equation (2)
-            # noise_y_sl = torch.randn(args.feat_const_batch, args.feat_const_batch - 1, device = device)
-            # dist_source = dist_source + noise_y_sl
+            noise_y_sl = torch.randn(args.feat_const_batch, args.feat_const_batch - 1, device = device)
+            dist_source = dist_source + noise_y_sl
             dist_source = sfm(dist_source)
 
         # computing distances among target generations
@@ -341,16 +341,17 @@ def train(args, loader, generator, discriminator, extra, g_optim, d_optim, e_opt
                     tmpc += 1
 
         ## PW: try to add some noise to equation (2)
-        # noise_y_stl = torch.randn(args.feat_const_batch, args.feat_const_batch - 1, device = device)
-        # dist_target = dist_target + noise_y_stl
+        noise_y_stl = torch.randn(args.feat_const_batch, args.feat_const_batch - 1, device = device)
+        dist_target = dist_target + noise_y_stl
         
         dist_target = sfm(dist_target)
-        rel_loss = args.kl_wt * \
-            kl_loss(torch.log(dist_target), dist_source) # distance consistency loss 
+        # original
+        #rel_loss = args.kl_wt * \
+        #    kl_loss(torch.log(dist_target), dist_source) # distance consistency loss 
         
         ## PW: try different loss
         # rel_loss = args.kl_wt * torch.cdist(dist_target, dist_source)
-        # rel_loss = args.kl_wt * torch.cdist(dist_target, dist_source, p = 1)
+        rel_loss = args.kl_wt * torch.cdist(dist_target, dist_source, p = 1) / args.feat_const_batch
         # rel_loss = args.kl_wt * kl_loss(torch.log(dist_target), dist_source) + \
         #   torch.randn(args.feat_const_batch, args.feat_const_batch - 1, device = device)
         
